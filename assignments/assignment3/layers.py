@@ -14,9 +14,57 @@ def l2_regularization(W, reg_strength):
       gradient, np.array same shape as W - gradient of weight by l2 loss
     '''
     # TODO: Copy from previous assignment
-    raise Exception("Not implemented!")
+    loss = reg_strength * np.sum(np.power(W, 2))
+    grad = reg_strength * 2 * W
 
     return loss, grad
+def cross_entropy_loss(probs, target_index):
+    '''
+    Computes cross-entropy loss
+
+    Arguments:
+      probs, np array, shape is either (N) or (batch_size, N) -
+        probabilities for every class
+      target_index: np array of int, shape is (1) or (batch_size) -
+        index of the true class for given sample(s)
+
+    Returns:
+      loss: single value
+    '''
+    # TODO implement cross-entropy
+    true_probs = np.zeros(probs.shape)
+    if probs.shape == (len(probs), ):
+        true_probs[target_index] = 1
+        value = - np.sum(true_probs * np.log(probs))
+    else:
+        np.put_along_axis(true_probs, target_index.reshape(-1,1), 1, axis=1)
+        value = - np.sum(true_probs * np.log(probs))
+    return value
+
+def softmax(predictions):
+    '''
+    Computes probabilities from scores
+
+    Arguments:
+      predictions, np array, shape is either (N) or (batch_size, N) -
+        classifier output
+
+    Returns:
+      probs, np array of the same shape as predictions -
+        probability for every class, 0..1
+    '''
+    # TODO implement softmax
+    pred_copy = predictions.copy()
+    pred_copy -= np.max(pred_copy)
+    if len(predictions.shape) == 1:
+
+        result = np.exp(pred_copy)/ np.sum(np.exp(pred_copy))
+    else:
+        pred_copy -= np.max(pred_copy, axis=1, keepdims=True)
+        sum_exp = np.sum(np.exp(pred_copy), axis=1, keepdims=True)
+        result = np.exp(pred_copy)/ sum_exp
+
+    return result
 
 
 def softmax_with_cross_entropy(predictions, target_index):
@@ -34,8 +82,20 @@ def softmax_with_cross_entropy(predictions, target_index):
       loss, single value - cross-entropy loss
       dprediction, np array same shape as predictions - gradient of predictions by loss value
     '''
-    # TODO copy from the previous assignment
-    raise Exception("Not implemented!")
+
+    preds = predictions.copy()
+    probs = softmax(preds)
+    loss = cross_entropy_loss(probs, target_index)
+    mask = np.zeros_like(predictions)
+    # mask and dprediction for (N) shape predictions
+    if predictions.shape == (len(predictions), ):
+        mask[target_index] = 1
+        dprediction = - (mask - probs)
+    # mask and dprediction for (batch_size, N) shape predictions
+    else:
+        np.put_along_axis(mask, target_index.reshape(-1,1), 1, axis=1)
+        dprediction = - (mask - probs)
+
     return loss, dprediction
 
 
@@ -54,13 +114,16 @@ class ReLULayer:
         pass
 
     def forward(self, X):
-        # TODO copy from the previous assignment
-        raise Exception("Not implemented!")
+        self.mask = np.zeros_like(X)
+        self.mask[X > 0] = 1
+
+        return np.maximum(X, np.zeros_like(X))
 
     def backward(self, d_out):
-        # TODO copy from the previous assignment
-        raise Exception("Not implemented!")
-        return d_result
+        d_result = np.zeros_like(d_out)
+        d_result[self.mask > 0] = 1
+
+        return d_result * d_out
 
     def params(self):
         return {}
@@ -74,12 +137,16 @@ class FullyConnectedLayer:
 
     def forward(self, X):
         # TODO copy from the previous assignment
-        raise Exception("Not implemented!")
+        self.X = Param(X)
+        return np.dot(X, self.W.value) + self.B.value
 
     def backward(self, d_out):
-        # TODO copy from the previous assignment
-        
-        raise Exception("Not implemented!")        
+        X = self.X.value
+        W = self.W.value
+        self.W.grad = np.dot(X.T, d_out)
+        self.B.grad = np.dot(np.ones(shape=(1, X.shape[0])), d_out)
+        d_input = np.dot(d_out, W.T)
+
         return d_input
 
     def params(self):
@@ -115,17 +182,34 @@ class ConvolutionalLayer:
     def forward(self, X):
         batch_size, height, width, channels = X.shape
 
-        out_height = 0
-        out_width = 0
-        
+        out_height = height - self.filter_size + 1 + 2 * self.padding
+        out_width = width - self.filter_size + 1 + 2 * self.padding
+
         # TODO: Implement forward pass
         # Hint: setup variables that hold the result
         # and one x/y location at a time in the loop below
         
         # It's ok to use loops for going over width and height
         # but try to avoid having any other loops
+        filter_size = self.filter_size
+        padding = self.padding
+
+        padded_X = np.zeros(shape=(batch_size, height + padding * 2, width + padding * 2, channels))
+        padded_X[:,padding:height-padding, padding:width-padding, :] = X.copy()
+
+
         for y in range(out_height):
             for x in range(out_width):
+                
+                left_bound_h = y
+                right_bound_h = max(height, y+filter_size)
+
+                left_bound_w = x
+                right_bound_w = max(height, x+filter_size)
+
+                target_x = X[: , left_bound_h: y+filter_size, x-filter_size:x+filter_size, :]
+                print(target_x.shape)
+
                 # TODO: Implement forward pass for specific location
                 pass
         raise Exception("Not implemented!")
